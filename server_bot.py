@@ -162,7 +162,7 @@ async def status_page(request):
 async def main():
     tg = Application.builder().token(BOT_TOKEN).build()
 
-    # Список команд на английском языке для меню Telegram
+    # Чистый список на английском без слова "process"
     commands = [
         BotCommand("status", "Check PC status"),
         BotCommand("screenshot", "Take a screenshot"),
@@ -171,13 +171,13 @@ async def main():
         BotCommand("shutdown", "Shutdown PC"),
         BotCommand("cancel_shutdown", "Cancel scheduled shutdown"),
         BotCommand("open_discord", "Launch Discord"),
-        BotCommand("close_discord", "Terminate Discord process"),
+        BotCommand("close_discord", "Close Discord"),
         BotCommand("open_steam", "Launch Steam"),
-        BotCommand("close_steam", "Terminate Steam process"),
+        BotCommand("close_steam", "Close Steam"),
         BotCommand("open_cs2", "Launch Counter-Strike 2"),
-        BotCommand("close_cs2", "Terminate CS2 process"),
+        BotCommand("close_cs2", "Close CS2"),
         BotCommand("open_chrome", "Launch Google Chrome"),
-        BotCommand("close_chrome", "Terminate Chrome process"),
+        BotCommand("close_chrome", "Close Chrome"),
         BotCommand("cmd", "Execute console command (/cmd <command>)"),
     ]
     
@@ -209,7 +209,7 @@ async def main():
     await web.TCPSite(runner, "0.0.0.0", PORT).start()
 
     await tg.initialize()
-    await tg.bot.set_my_commands(commands) # Применяем английское меню
+    await tg.bot.set_my_commands(commands)
     await tg.start()
     await tg.updater.start_polling()
 
