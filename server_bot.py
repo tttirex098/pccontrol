@@ -123,14 +123,10 @@ async def handle_text(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
 
     if text in actions:
         action, args = actions[text]
-        if action == "cmd":
-            r = await ask(action, args)
-        else:
-            r = await ask(action, args)
+        r = await ask(action, args)
         await update.message.reply_text(r.get("text", str(r)))
 
 
-# ================== СТАРІ КОМАНДИ ==================
 async def cmd(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     if not ok(update): return
     text = " ".join(ctx.args)
@@ -176,6 +172,45 @@ async def button(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
         r = await ask(data, timeout=120)
 
     await q.message.reply_text(r.get("text", str(r)))
+
+
+async def ws(request):
+    global agent
+
+    if request.query.get("secret") != AGENT_SECRET:
+        return web.Response(status=403)
+
+    sock = web.WebSocketResponse(heartbeat=25)
+    await sock.prepare(request)
+
+    old = agent
+    if old is not None and not old.closed:
+        try:
+            await old.close()
+        except Exception:
+            pass
+
+    agent = sock
+    print(f"[agent] connected: {request.remote}")
+
+    async for msg in sock:
+        if msg.type == web.WSMsgType.TEXT:
+            data = json.loads(msg.data)
+            fut = pending.pop(data.get("id"), None)
+            if fut and not fut.done():
+                fut.set_result(data)
+        elif msg.type in (web.WSMsgType.ERROR, web.WSMsgType.CLOSE, web.WSMsgType.CLOSING):
+            break
+
+    if agent is sock:
+        agent = None
+    print(f"[agent] disconnected: {request.remote}")
+
+    return sock
+
+
+async def status_page(request):
+    return web.Response(text="agent: online" if agent_online() else "agent: offline")
 
 
 # ================== ЗАПУСК ==================
