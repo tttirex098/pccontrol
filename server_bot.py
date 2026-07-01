@@ -30,7 +30,6 @@ def get_reply_keyboard():
         [KeyboardButton("Open Steam"), KeyboardButton("Close Steam")],
         [KeyboardButton("Open CS2"), KeyboardButton("Close CS2")],
         [KeyboardButton("Open Chrome"), KeyboardButton("Close Chrome")],
-        [KeyboardButton("Open Faceit Anticheat"), KeyboardButton("Close Faceit Anticheat")],
     ]
     return ReplyKeyboardMarkup(keyboard, resize_keyboard=True, persistent=True)
 
@@ -51,8 +50,6 @@ def kb_inline():
          InlineKeyboardButton("Close CS2", callback_data="close_cs2")],
         [InlineKeyboardButton("Open Chrome", callback_data="open_chrome"), 
          InlineKeyboardButton("Close Chrome", callback_data="close_chrome")],
-        [InlineKeyboardButton("Open Faceit Anticheat", callback_data="open_faceit"), 
-         InlineKeyboardButton("Close Faceit Anticheat", callback_data="close_faceit")],
     ])
 
 
@@ -92,7 +89,6 @@ async def ask(action, args=None, timeout=90):
 
 async def panel(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     if not ok(update): return
-    # Отправляем панель управления сразу со встроенной клавиатурой
     await update.message.reply_text("PC Control Panel", reply_markup=kb_inline())
 
 
@@ -100,7 +96,6 @@ async def handle_text(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     if not ok(update): return
     text = update.message.text.strip()
 
-    # Маппинг обычных текстовых кнопок на команды агента
     actions = {
         "Status": ("status", None),
         "Screenshot": ("screenshot", None),
@@ -120,9 +115,6 @@ async def handle_text(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
         
         "Open Chrome": ("cmd", {"command": 'start chrome'}),
         "Close Chrome": ("close", {"name": "chrome"}),
-        
-        "Open Faceit Anticheat": ("cmd", {"command": 'start "" "C:\\shortcuts\\faceit.lnk"'}),
-        "Close Faceit Anticheat": ("close", {"name": "faceitclient"}),
     }
 
     if text in actions:
@@ -167,7 +159,6 @@ async def button(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     await q.answer()
     data = q.data
 
-    # Обработка инлайн-кнопок (Callback) с обновленными путями
     inline_actions = {
         "open_discord": ("cmd", {"command": 'start "" "C:\\shortcuts\\discord.lnk"'}),
         "close_discord": ("close", {"name": "discord"}),
@@ -181,9 +172,6 @@ async def button(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
         "open_chrome": ("cmd", {"command": 'start chrome'}),
         "close_chrome": ("close", {"name": "chrome"}),
         
-        "open_faceit": ("cmd", {"command": 'start "" "C:\\shortcuts\\faceit.lnk"'}),
-        "close_faceit": ("close", {"name": "faceitclient"}),
-        
         "cancel_shutdown": ("cmd", {"command": "shutdown /a"}),
     }
 
@@ -191,7 +179,6 @@ async def button(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
         action, args = inline_actions[data]
         r = await ask(action, args)
     else:
-        # Для базовых команд: status, screenshot, lock, shutdown, restart
         r = await ask(data, timeout=120)
 
     await q.message.reply_text(r.get("text", str(r)))
