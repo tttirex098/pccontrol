@@ -5,7 +5,7 @@ from telegram import InlineKeyboardButton, InlineKeyboardMarkup, Update
 from telegram.ext import Application, CommandHandler, CallbackQueryHandler, ContextTypes
 
 load_dotenv()
-BOT_TOKEN=os.getenv("8706037093:AAGeq4K18gbZRSvJnfz41fIcahS8dv0W-9I")
+BOT_TOKEN=os.getenv(8706037093:AAGeq4K18gbZRSvJnfz41fIcahS8dv0W-9I)
 ALLOWED_USER_ID=int(os.getenv("6027204124","0"))
 AGENT_SECRET=os.getenv("pccontrol_7Kq9vX2mN8sR4tY6pL3aW5zB1cD0fH")
 PORT=int(os.getenv("PORT","8080"))
