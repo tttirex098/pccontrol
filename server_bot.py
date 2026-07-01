@@ -57,14 +57,12 @@ async def ask(action, args=None, timeout=90):
 
 
 async def panel(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
-    if not ok(update):
-        return
+    if not ok(update): return
     await update.message.reply_text("PC Control", reply_markup=kb())
 
 
 async def cmd(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
-    if not ok(update):
-        return
+    if not ok(update): return
     text = " ".join(ctx.args)
     if not text:
         return await update.message.reply_text("Use: /cmd ipconfig")
@@ -73,29 +71,25 @@ async def cmd(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
 
 
 async def open_app(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
-    if not ok(update):
-        return
+    if not ok(update): return
     r = await ask("open", {"name": " ".join(ctx.args)})
     await update.message.reply_text(r.get("text", str(r)))
 
 
 async def close_app(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
-    if not ok(update):
-        return
+    if not ok(update): return
     r = await ask("close", {"name": " ".join(ctx.args)})
     await update.message.reply_text(r.get("text", str(r)))
 
 
 async def simple(update: Update, ctx: ContextTypes.DEFAULT_TYPE, action: str):
-    if not ok(update):
-        return
+    if not ok(update): return
     r = await ask(action, timeout=120)
     await update.message.reply_text(r.get("text", str(r)))
 
 
 async def button(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
-    if not ok(update):
-        return
+    if not ok(update): return
     q = update.callback_query
     await q.answer()
     data = q.data
@@ -145,7 +139,6 @@ async def main():
 
     tg.add_handler(CallbackQueryHandler(button))
 
-    # Web server
     app = web.Application()
     app.router.add_get("/ws", ws)
     app.router.add_get("/", lambda r: web.Response(text="ok"))
