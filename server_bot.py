@@ -22,7 +22,6 @@ pending = {}
 
 
 def get_reply_keyboard():
-    """Постійна клавіатура знизу"""
     keyboard = [
         [KeyboardButton("Status"), KeyboardButton("Screenshot")],
         [KeyboardButton("Lock"), KeyboardButton("Restart")],
@@ -37,7 +36,6 @@ def get_reply_keyboard():
 
 
 def kb_inline():
-    """Інлайн клавіатура для /panel"""
     return InlineKeyboardMarkup([
         [InlineKeyboardButton("Status", callback_data="status"), 
          InlineKeyboardButton("Screenshot", callback_data="screenshot")],
@@ -98,7 +96,6 @@ async def panel(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
 
 
 async def handle_text(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
-    """Обробка кнопок постійної клавіатури"""
     if not ok(update): return
     text = update.message.text.strip()
 
@@ -109,34 +106,25 @@ async def handle_text(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
         "Restart": ("restart", None),
         "Shutdown": ("shutdown", None),
         "Cancel shutdown": ("cmd", {"command": "shutdown /a"}),
-        
         "Open Discord": ("open", {"name": "discord"}),
         "Close Discord": ("close", {"name": "discord"}),
-        
         "Open Steam": ("open", {"name": "steam"}),
         "Close Steam": ("close", {"name": "steam"}),
-        
-        "Open CS2": ("open", {"name": "cs2"}),
+        "Open CS2": ("cmd", {"command": 'start steam://rungameid/730'}),
         "Close CS2": ("close", {"name": "cs2"}),
-        
-        "Open Chrome": ("open", {"name": "chrome.exe"}),
-        "Close Chrome": ("close", {"name": "chrome.exe"}),
-        
-        "Open Faceit Anticheat": ("open", {"name": "faceit"}),
-        "Close Faceit Anticheat": ("close", {"name": "faceit"}),
+        "Open Chrome": ("open", {"name": "chrome"}),
+        "Close Chrome": ("close", {"name": "chrome"}),
+        "Open Faceit Anticheat": ("open", {"name": "faceit anticheat"}),
+        "Close Faceit Anticheat": ("close", {"name": "faceit anticheat"}),
     }
 
     if text in actions:
         action, args = actions[text]
-        r = await ask(action, args, timeout=30)
-        
-        result = r.get("text", str(r))
-        await update.message.reply_text(result)
-        
-        if not r.get("ok", True):
-            await update.message.reply_text("Не вдалося виконати дію. Можливо неправильна назва програми.")
+        r = await ask(action, args)
+        await update.message.reply_text(r.get("text", str(r)))
 
 
+# ================== СТАРІ КОМАНДИ ==================
 async def cmd(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     if not ok(update): return
     text = " ".join(ctx.args)
@@ -186,7 +174,6 @@ async def button(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
 
 async def ws(request):
     global agent
-
     if request.query.get("secret") != AGENT_SECRET:
         return web.Response(status=403)
 
@@ -223,7 +210,6 @@ async def status_page(request):
     return web.Response(text="agent: online" if agent_online() else "agent: offline")
 
 
-# ================== ЗАПУСК ==================
 async def main():
     tg = Application.builder().token(BOT_TOKEN).build()
 
