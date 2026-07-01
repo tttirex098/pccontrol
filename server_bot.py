@@ -5,8 +5,8 @@ import uuid
 from aiohttp import web
 from dotenv import load_dotenv
 
-from telegram import InlineKeyboardButton, InlineKeyboardMarkup, Update
-from telegram.ext import Application, CommandHandler, CallbackQueryHandler, ContextTypes
+from telegram import InlineKeyboardButton, InlineKeyboardMarkup, Update, ReplyKeyboardMarkup, KeyboardButton
+from telegram.ext import Application, CommandHandler, CallbackQueryHandler, ContextTypes, MessageHandler, filters
 
 load_dotenv()
 
@@ -21,7 +21,23 @@ agent = None
 pending = {}
 
 
-def kb():
+def get_reply_keyboard():
+    """Постійна клавіатура знизу"""
+    keyboard = [
+        [KeyboardButton("Status"), KeyboardButton("Screenshot")],
+        [KeyboardButton("Lock"), KeyboardButton("Restart")],
+        [KeyboardButton("Shutdown"), KeyboardButton("Cancel shutdown")],
+        [KeyboardButton("Open Discord"), KeyboardButton("Close Discord")],
+        [KeyboardButton("Open Steam"), KeyboardButton("Close Steam")],
+        [KeyboardButton("Open CS2"), KeyboardButton("Close CS2")],
+        [KeyboardButton("Open Chrome"), KeyboardButton("Close Chrome")],
+        [KeyboardButton("Open Faceit Anticheat"), KeyboardButton("Close Faceit Anticheat")],
+    ]
+    return ReplyKeyboardMarkup(keyboard, resize_keyboard=True, persistent=True)
+
+
+def kb_inline():
+    """Інлайн клавіатура для /panel"""
     return InlineKeyboardMarkup([
         [InlineKeyboardButton("Status", callback_data="status"), 
          InlineKeyboardButton("Screenshot", callback_data="screenshot")],
@@ -32,7 +48,13 @@ def kb():
         [InlineKeyboardButton("Open Discord", callback_data="open discord"), 
          InlineKeyboardButton("Close Discord", callback_data="close discord")],
         [InlineKeyboardButton("Open Steam", callback_data="open steam"), 
-         InlineKeyboardButton("Close Steam", callback_data="close steam")]
+         InlineKeyboardButton("Close Steam", callback_data="close steam")],
+        [InlineKeyboardButton("Open CS2", callback_data="open cs2"), 
+         InlineKeyboardButton("Close CS2", callback_data="close cs2")],
+        [InlineKeyboardButton("Open Chrome", callback_data="open chrome"), 
+         InlineKeyboardButton("Close Chrome", callback_data="close chrome")],
+        [InlineKeyboardButton("Open Faceit Anticheat", callback_data="open faceit anticheat"), 
+         InlineKeyboardButton("Close Faceit Anticheat", callback_data="close faceit anticheat")],
     ])
 
 
@@ -59,8 +81,6 @@ async def ask(action, args=None, timeout=90):
         await sock.send_json({"id": rid, "action": action, "args": args or {}})
     except Exception as e:
         pending.pop(rid, None)
-        # Якщо відправка не вдалась - це з'єднання точно мертве.
-        # Скидаємо agent одразу, не чекаючи поки це виявить ws().
         if agent is sock:
             agent = None
         return {"ok": False, "text": f"Send error: {e}"}
@@ -74,9 +94,43 @@ async def ask(action, args=None, timeout=90):
 
 async def panel(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     if not ok(update): return
-    await update.message.reply_text("PC Control", reply_markup=kb())
+    await update.message.reply_text("PC Control Panel", reply_markup=kb_inline())
 
 
+async def handle_text(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
+    """Обробка кнопок постійної клавіатури"""
+    if not ok(update): return
+    text = update.message.text.strip()
+
+    actions = {
+        "Status": ("status", None),
+        "Screenshot": ("screenshot", None),
+        "Lock": ("lock", None),
+        "Restart": ("restart", None),
+        "Shutdown": ("shutdown", None),
+        "Cancel shutdown": ("cmd", {"command": "shutdown /a"}),
+        "Open Discord": ("open", {"name": "discord"}),
+        "Close Discord": ("close", {"name": "discord"}),
+        "Open Steam": ("open", {"name": "steam"}),
+        "Close Steam": ("close", {"name": "steam"}),
+        "Open CS2": ("open", {"name": "cs2"}),
+        "Close CS2": ("close", {"name": "cs2"}),
+        "Open Chrome": ("open", {"name": "chrome"}),
+        "Close Chrome": ("close", {"name": "chrome"}),
+        "Open Faceit Anticheat": ("open", {"name": "faceit anticheat"}),
+        "Close Faceit Anticheat": ("close", {"name": "faceit anticheat"}),
+    }
+
+    if text in actions:
+        action, args = actions[text]
+        if action == "cmd":
+            r = await ask(action, args)
+        else:
+            r = await ask(action, args)
+        await update.message.reply_text(r.get("text", str(r)))
+
+
+# ================== СТАРІ КОМАНДИ ==================
 async def cmd(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     if not ok(update): return
     text = " ".join(ctx.args)
@@ -88,13 +142,15 @@ async def cmd(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
 
 async def open_app(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     if not ok(update): return
-    r = await ask("open", {"name": " ".join(ctx.args)})
+    name = " ".join(ctx.args)
+    r = await ask("open", {"name": name})
     await update.message.reply_text(r.get("text", str(r)))
 
 
 async def close_app(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     if not ok(update): return
-    r = await ask("close", {"name": " ".join(ctx.args)})
+    name = " ".join(ctx.args)
+    r = await ask("close", {"name": name})
     await update.message.reply_text(r.get("text", str(r)))
 
 
@@ -122,54 +178,7 @@ async def button(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     await q.message.reply_text(r.get("text", str(r)))
 
 
-async def ws(request):
-    global agent
-
-    if request.query.get("secret") != AGENT_SECRET:
-        return web.Response(status=403)
-
-    sock = web.WebSocketResponse(heartbeat=25)
-    await sock.prepare(request)
-
-    # Якщо в пам'яті вже висить попереднє з'єднання - закриваємо його.
-    # Це усуває "гонку": старий обробник міг би пізніше скинути agent
-    # вже ПІСЛЯ того, як підключився новий (саме через це бот бачив
-    # "offline", хоча програма на ПК була підключена і показувала "Connected").
-    old = agent
-    if old is not None and not old.closed:
-        try:
-            await old.close()
-        except Exception:
-            pass
-
-    agent = sock
-    print(f"[agent] connected: {request.remote}")
-
-    async for msg in sock:
-        if msg.type == web.WSMsgType.TEXT:
-            data = json.loads(msg.data)
-            fut = pending.pop(data.get("id"), None)
-            if fut and not fut.done():
-                fut.set_result(data)
-        elif msg.type in (web.WSMsgType.ERROR, web.WSMsgType.CLOSE, web.WSMsgType.CLOSING):
-            break
-
-    # Скидаємо agent, ТІЛЬКИ якщо він досі вказує саме на це з'єднання.
-    # Якщо тим часом підключився новий агент - не чіпаємо його.
-    if agent is sock:
-        agent = None
-    print(f"[agent] disconnected: {request.remote}")
-
-    return sock
-
-
-async def status_page(request):
-    # Зручно для швидкої перевірки в браузері, а також як ціль
-    # для зовнішнього keep-alive пінгу (щоб безкоштовний Render-інстанс
-    # не засинав через 15 хв без вхідного трафіку).
-    return web.Response(text="agent: online" if agent_online() else "agent: offline")
-
-
+# ================== ЗАПУСК ==================
 async def main():
     tg = Application.builder().token(BOT_TOKEN).build()
 
@@ -182,6 +191,7 @@ async def main():
         tg.add_handler(CommandHandler(name, lambda u, c, n=name: simple(u, c, n)))
 
     tg.add_handler(CallbackQueryHandler(button))
+    tg.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_text))
 
     app = web.Application()
     app.router.add_get("/ws", ws)
