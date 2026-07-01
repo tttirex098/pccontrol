@@ -91,7 +91,8 @@ async def menu_app_handler(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
         "close_steam": ("close", {"name": "steam"}),
         
         "open_cs2": ("cmd", {"command": "start steam://rungameid/730"}),
-        "close_cs2": ("close", {"name": "cs2"}),
+        # Принудительное закрытие CS2 через taskkill (флаг /F убивает процесс, даже если он завис)
+        "close_cs2": ("cmd", {"command": "taskkill /F /IM cs2.exe"}),
         
         "open_chrome": ("cmd", {"command": 'start chrome'}),
         "close_chrome": ("close", {"name": "chrome"}),
@@ -162,7 +163,6 @@ async def status_page(request):
 async def main():
     tg = Application.builder().token(BOT_TOKEN).build()
 
-    # Список команд на английском языке для меню Telegram
     commands = [
         BotCommand("status", "Check PC status"),
         BotCommand("screenshot", "Take a screenshot"),
@@ -171,17 +171,16 @@ async def main():
         BotCommand("shutdown", "Shutdown PC"),
         BotCommand("cancel_shutdown", "Cancel scheduled shutdown"),
         BotCommand("open_discord", "Launch Discord"),
-        BotCommand("close_discord", "Terminate Discord process"),
+        BotCommand("close_discord", "Close Discord"),
         BotCommand("open_steam", "Launch Steam"),
-        BotCommand("close_steam", "Terminate Steam process"),
+        BotCommand("close_steam", "Close Steam"),
         BotCommand("open_cs2", "Launch Counter-Strike 2"),
-        BotCommand("close_cs2", "Terminate CS2 process"),
+        BotCommand("close_cs2", "Close CS2"),
         BotCommand("open_chrome", "Launch Google Chrome"),
-        BotCommand("close_chrome", "Terminate Chrome process"),
+        BotCommand("close_chrome", "Close Chrome"),
         BotCommand("cmd", "Execute console command (/cmd <command>)"),
     ]
     
-    # Регистрация хэндлеров
     for name in ["status", "screenshot", "lock", "shutdown", "restart"]:
         tg.add_handler(CommandHandler(name, simple_handler))
 
@@ -209,7 +208,7 @@ async def main():
     await web.TCPSite(runner, "0.0.0.0", PORT).start()
 
     await tg.initialize()
-    await tg.bot.set_my_commands(commands) # Применяем английское меню
+    await tg.bot.set_my_commands(commands)
     await tg.start()
     await tg.updater.start_polling()
 
