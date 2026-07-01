@@ -6,9 +6,9 @@ from dotenv import load_dotenv
 
 load_dotenv()
 SERVER_WS_URL=os.getenv("SERVER_WS_URL")
-AGENT_SECRET=os.getenv("AGENT_SECRET")
-BOT_TOKEN=os.getenv("BOT_TOKEN")
-CHAT_ID=os.getenv("ALLOWED_USER_ID")
+AGENT_SECRET=os.getenv("pccontrol_7Kq9vX2mN8sR4tY6pL3aW5zB1cD0fH")
+BOT_TOKEN=os.getenv("8706037093:AAHXwUXPvSWwGfDaj5u8HqlM2Y0aE9zggAM")
+CHAT_ID=os.getenv("6027204124")
 
 APPS={
  "discord": os.path.expandvars(r"%LOCALAPPDATA%\Discord\Update.exe --processStart Discord.exe"),
