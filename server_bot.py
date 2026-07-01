@@ -109,22 +109,32 @@ async def handle_text(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
         "Restart": ("restart", None),
         "Shutdown": ("shutdown", None),
         "Cancel shutdown": ("cmd", {"command": "shutdown /a"}),
+        
         "Open Discord": ("open", {"name": "discord"}),
         "Close Discord": ("close", {"name": "discord"}),
+        
         "Open Steam": ("open", {"name": "steam"}),
         "Close Steam": ("close", {"name": "steam"}),
+        
         "Open CS2": ("open", {"name": "cs2"}),
         "Close CS2": ("close", {"name": "cs2"}),
-        "Open Chrome": ("open", {"name": "chrome"}),
-        "Close Chrome": ("close", {"name": "chrome"}),
-        "Open Faceit Anticheat": ("open", {"name": "faceit anticheat"}),
-        "Close Faceit Anticheat": ("close", {"name": "faceit anticheat"}),
+        
+        "Open Chrome": ("open", {"name": "chrome.exe"}),
+        "Close Chrome": ("close", {"name": "chrome.exe"}),
+        
+        "Open Faceit Anticheat": ("open", {"name": "faceit"}),
+        "Close Faceit Anticheat": ("close", {"name": "faceit"}),
     }
 
     if text in actions:
         action, args = actions[text]
-        r = await ask(action, args)
-        await update.message.reply_text(r.get("text", str(r)))
+        r = await ask(action, args, timeout=30)
+        
+        result = r.get("text", str(r))
+        await update.message.reply_text(result)
+        
+        if not r.get("ok", True):
+            await update.message.reply_text("Не вдалося виконати дію. Можливо неправильна назва програми.")
 
 
 async def cmd(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
