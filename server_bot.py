@@ -1,96 +1,11 @@
-import os
-import json
 import asyncio
-import uuid
+import json
 from aiohttp import web
-from dotenv import load_dotenv
-
-from telegram import InlineKeyboardButton, InlineKeyboardMarkup, Update
+from telegram import Update
 from telegram.ext import Application, CommandHandler, CallbackQueryHandler, ContextTypes
 
-load_dotenv()
-
-# ================== НАЛАШТУВАННЯ ==================
-BOT_TOKEN = os.getenv("BOT_TOKEN")
-ALLOWED_USER_ID = int(os.getenv("ALLOWED_USER_ID", "0"))
-AGENT_SECRET = os.getenv("AGENT_SECRET")
-PORT = int(os.getenv("PORT", "8080"))
-# =================================================
-
-agent = None
-pending = {}
-
-
-def kb():
-    return InlineKeyboardMarkup([
-        [InlineKeyboardButton("Status", callback_data="status"), 
-         InlineKeyboardButton("Screenshot", callback_data="screenshot")],
-        [InlineKeyboardButton("Lock", callback_data="lock"), 
-         InlineKeyboardButton("Restart", callback_data="restart")],
-        [InlineKeyboardButton("Shutdown", callback_data="shutdown"), 
-         InlineKeyboardButton("Cancel shutdown", callback_data="cancel_shutdown")],
-        [InlineKeyboardButton("Open Discord", callback_data="open discord"), 
-         InlineKeyboardButton("Close Discord", callback_data="close discord")],
-        [InlineKeyboardButton("Open Steam", callback_data="open steam"), 
-         InlineKeyboardButton("Close Steam", callback_data="close steam")]
-    ])
-
-
-def ok(u):
-    return u.effective_user and u.effective_user.id == ALLOWED_USER_ID
-
-
-def agent_online():
-    return agent is not None and not agent.closed
-
-
-async def ask(action, args=None, timeout=90):
-    global agent
-    sock = agent
-
-    if sock is None or sock.closed:
-        return {"ok": False, "text": "PC offline"}
-
-    rid = str(uuid.uuid4())
-    fut = asyncio.get_running_loop().create_future()
-    pending[rid] = fut
-
-    try:
-        await sock.send_json({"id": rid, "action": action, "args": args or {}})
-    except Exception as e:
-        pending.pop(rid, None)
-        # Якщо відправка не вдалась - це з'єднання точно мертве.
-        # Скидаємо agent одразу, не чекаючи поки це виявить ws().
-        if agent is sock:
-            agent = None
-        return {"ok": False, "text": f"Send error: {e}"}
-
-    try:
-        return await asyncio.wait_for(fut, timeout)
-    except asyncio.TimeoutError:
-        pending.pop(rid, None)
-        return {"ok": False, "text": "Timeout"}
-
-
-async def panel(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
-    if not ok(update): return
-    await update.message.reply_text("PC Control", reply_markup=kb())
-
-
-async def cmd(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
-    if not ok(update): return
-    text = " ".join(ctx.args)
-    if not text:
-        return await update.message.reply_text("Use: /cmd ipconfig")
-    r = await ask("cmd", {"command": text}, 120)
-    await update.message.reply_text(r.get("text", "")[:3900])
-
-
-async def open_app(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
-    if not ok(update): return
-    r = await ask("open", {"name": " ".join(ctx.args)})
-    await update.message.reply_text(r.get("text", str(r)))
-
+# Припускаємо, що ці константи та функції визначені у твоїй повній версії коду:
+# BOT_TOKEN, PORT, AGENT_SECRET, agent, pending, ok, ask, agent_online, panel, cmd
 
 async def close_app(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     if not ok(update): return
@@ -116,6 +31,14 @@ async def button(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
         r = await ask("close", {"name": data[6:]})
     elif data == "cancel_shutdown":
         r = await ask("cmd", {"command": "shutdown /a"})
+    # --- Додано обробку нових кнопок ---
+    elif data == "faceit":
+        r = await ask("faceit", timeout=120)
+    elif data == "cs2":
+        r = await ask("cs2", timeout=120)
+    elif data == "chrome":
+        r = await ask("chrome", timeout=120)
+    # ----------------------------------
     else:
         r = await ask(data, timeout=120)
 
@@ -178,8 +101,14 @@ async def main():
     tg.add_handler(CommandHandler("open", open_app))
     tg.add_handler(CommandHandler("close", close_app))
 
+    # Базові команди
     for name in ["status", "screenshot", "lock", "shutdown", "restart"]:
         tg.add_handler(CommandHandler(name, lambda u, c, n=name: simple(u, c, n)))
+
+    # --- Додано нові команди для запуску програм ---
+    for name in ["faceit", "cs2", "chrome"]:
+        tg.add_handler(CommandHandler(name, lambda u, c, n=name: simple(u, c, n)))
+    # ----------------------------------------------
 
     tg.add_handler(CallbackQueryHandler(button))
 
