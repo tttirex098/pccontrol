@@ -5,8 +5,8 @@ import uuid
 from aiohttp import web
 from dotenv import load_dotenv
 
-from telegram import InlineKeyboardButton, InlineKeyboardMarkup, Update, ReplyKeyboardMarkup, KeyboardButton
-from telegram.ext import Application, CommandHandler, CallbackQueryHandler, ContextTypes, MessageHandler, filters
+from telegram import Update, BotCommand
+from telegram.ext import Application, CommandHandler, ContextTypes, MessageHandler, filters
 
 load_dotenv()
 
@@ -19,38 +19,6 @@ PORT = int(os.getenv("PORT", "8080"))
 
 agent = None
 pending = {}
-
-
-def get_reply_keyboard():
-    keyboard = [
-        [KeyboardButton("Status"), KeyboardButton("Screenshot")],
-        [KeyboardButton("Lock"), KeyboardButton("Restart")],
-        [KeyboardButton("Shutdown"), KeyboardButton("Cancel shutdown")],
-        [KeyboardButton("Open Discord"), KeyboardButton("Close Discord")],
-        [KeyboardButton("Open Steam"), KeyboardButton("Close Steam")],
-        [KeyboardButton("Open CS2"), KeyboardButton("Close CS2")],
-        [KeyboardButton("Open Chrome"), KeyboardButton("Close Chrome")],
-    ]
-    return ReplyKeyboardMarkup(keyboard, resize_keyboard=True, persistent=True)
-
-
-def kb_inline():
-    return InlineKeyboardMarkup([
-        [InlineKeyboardButton("Status", callback_data="status"), 
-         InlineKeyboardButton("Screenshot", callback_data="screenshot")],
-        [InlineKeyboardButton("Lock", callback_data="lock"), 
-         InlineKeyboardButton("Restart", callback_data="restart")],
-        [InlineKeyboardButton("Shutdown", callback_data="shutdown"), 
-         InlineKeyboardButton("Cancel shutdown", callback_data="cancel_shutdown")],
-        [InlineKeyboardButton("Open Discord", callback_data="open_discord"), 
-         InlineKeyboardButton("Close Discord", callback_data="close_discord")],
-        [InlineKeyboardButton("Open Steam", callback_data="open_steam"), 
-         InlineKeyboardButton("Close Steam", callback_data="close_steam")],
-        [InlineKeyboardButton("Open CS2", callback_data="open_cs2"), 
-         InlineKeyboardButton("Close CS2", callback_data="close_cs2")],
-        [InlineKeyboardButton("Open Chrome", callback_data="open_chrome"), 
-         InlineKeyboardButton("Close Chrome", callback_data="close_chrome")],
-    ])
 
 
 def ok(u):
@@ -87,50 +55,52 @@ async def ask(action, args=None, timeout=90):
         return {"ok": False, "text": "Timeout"}
 
 
-async def panel(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
-    if not ok(update): return
-    await update.message.reply_text("PC Control Panel", reply_markup=kb_inline())
+# ================== ОБРАБОТЧИКИ КОМАНД МЕНЮ ==================
 
-
-async def handle_text(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
-    if not ok(update): return
-    text = update.message.text.strip()
-
-    actions = {
-        "Status": ("status", None),
-        "Screenshot": ("screenshot", None),
-        "Lock": ("lock", None),
-        "Restart": ("restart", None),
-        "Shutdown": ("shutdown", None),
-        "Cancel shutdown": ("cmd", {"command": "shutdown /a"}),
-        
-        "Open Discord": ("cmd", {"command": 'start "" "C:\\shortcuts\\discord.lnk"'}),
-        "Close Discord": ("close", {"name": "discord"}),
-        
-        "Open Steam": ("cmd", {"command": 'start "" "C:\\shortcuts\\steam.lnk"'}),
-        "Close Steam": ("close", {"name": "steam"}),
-        
-        "Open CS2": ("cmd", {"command": "start steam://rungameid/730"}),
-        "Close CS2": ("close", {"name": "cs2"}),
-        
-        "Open Chrome": ("cmd", {"command": 'start chrome'}),
-        "Close Chrome": ("close", {"name": "chrome"}),
-    }
-
-    if text in actions:
-        action, args = actions[text]
-        r = await ask(action, args)
-        await update.message.reply_text(r.get("text", str(r)))
-
-
-# ================== СТАРІ КОМАНДИ ==================
-async def cmd(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
+async def cmd_handler(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     if not ok(update): return
     text = " ".join(ctx.args)
     if not text:
         return await update.message.reply_text("Use: /cmd ipconfig")
     r = await ask("cmd", {"command": text}, 120)
     await update.message.reply_text(r.get("text", "")[:3900])
+
+
+async def simple_handler(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
+    if not ok(update): return
+    action = update.effective_message.text.split()[0].replace("/", "")
+    r = await ask(action, timeout=120)
+    await update.message.reply_text(r.get("text", str(r)))
+
+
+async def cancel_shutdown_handler(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
+    if not ok(update): return
+    r = await ask("cmd", {"command": "shutdown /a"})
+    await update.message.reply_text(r.get("text", str(r)))
+
+
+async def menu_app_handler(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
+    if not ok(update): return
+    command_name = update.effective_message.text.split()[0].replace("/", "")
+    
+    apps_map = {
+        "open_discord": ("cmd", {"command": 'start "" "C:\\shortcuts\\discord.lnk"'}),
+        "close_discord": ("close", {"name": "discord"}),
+        
+        "open_steam": ("cmd", {"command": 'start "" "C:\\shortcuts\\steam.lnk"'}),
+        "close_steam": ("close", {"name": "steam"}),
+        
+        "open_cs2": ("cmd", {"command": "start steam://rungameid/730"}),
+        "close_cs2": ("close", {"name": "cs2"}),
+        
+        "open_chrome": ("cmd", {"command": 'start chrome'}),
+        "close_chrome": ("close", {"name": "chrome"}),
+    }
+    
+    if command_name in apps_map:
+        action, args = apps_map[command_name]
+        r = await ask(action, args)
+        await update.message.reply_text(r.get("text", str(r)))
 
 
 async def open_app(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
@@ -147,42 +117,7 @@ async def close_app(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(r.get("text", str(r)))
 
 
-async def simple(update: Update, ctx: ContextTypes.DEFAULT_TYPE, action: str):
-    if not ok(update): return
-    r = await ask(action, timeout=120)
-    await update.message.reply_text(r.get("text", str(r)))
-
-
-async def button(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
-    if not ok(update): return
-    q = update.callback_query
-    await q.answer()
-    data = q.data
-
-    inline_actions = {
-        "open_discord": ("cmd", {"command": 'start "" "C:\\shortcuts\\discord.lnk"'}),
-        "close_discord": ("close", {"name": "discord"}),
-        
-        "open_steam": ("cmd", {"command": 'start "" "C:\\shortcuts\\steam.lnk"'}),
-        "close_steam": ("close", {"name": "steam"}),
-        
-        "open_cs2": ("cmd", {"command": "start steam://rungameid/730"}),
-        "close_cs2": ("close", {"name": "cs2"}),
-        
-        "open_chrome": ("cmd", {"command": 'start chrome'}),
-        "close_chrome": ("close", {"name": "chrome"}),
-        
-        "cancel_shutdown": ("cmd", {"command": "shutdown /a"}),
-    }
-
-    if data in inline_actions:
-        action, args = inline_actions[data]
-        r = await ask(action, args)
-    else:
-        r = await ask(data, timeout=120)
-
-    await q.message.reply_text(r.get("text", str(r)))
-
+# ================== СЕТЕВАЯ ЧАСТЬ (WEBSOCKET) ==================
 
 async def ws(request):
     global agent
@@ -222,19 +157,48 @@ async def status_page(request):
     return web.Response(text="agent: online" if agent_online() else "agent: offline")
 
 
+# ================== ОСНОВНОЙ ЗАПУСК ==================
+
 async def main():
     tg = Application.builder().token(BOT_TOKEN).build()
 
-    tg.add_handler(CommandHandler(["start", "panel"], panel))
-    tg.add_handler(CommandHandler("cmd", cmd))
+    # Список команд на английском языке для меню Telegram
+    commands = [
+        BotCommand("status", "Check PC status"),
+        BotCommand("screenshot", "Take a screenshot"),
+        BotCommand("lock", "Lock Windows"),
+        BotCommand("restart", "Restart PC"),
+        BotCommand("shutdown", "Shutdown PC"),
+        BotCommand("cancel_shutdown", "Cancel scheduled shutdown"),
+        BotCommand("open_discord", "Launch Discord"),
+        BotCommand("close_discord", "Terminate Discord process"),
+        BotCommand("open_steam", "Launch Steam"),
+        BotCommand("close_steam", "Terminate Steam process"),
+        BotCommand("open_cs2", "Launch Counter-Strike 2"),
+        BotCommand("close_cs2", "Terminate CS2 process"),
+        BotCommand("open_chrome", "Launch Google Chrome"),
+        BotCommand("close_chrome", "Terminate Chrome process"),
+        BotCommand("cmd", "Execute console command (/cmd <command>)"),
+    ]
+    
+    # Регистрация хэндлеров
+    for name in ["status", "screenshot", "lock", "shutdown", "restart"]:
+        tg.add_handler(CommandHandler(name, simple_handler))
+
+    tg.add_handler(CommandHandler("cancel_shutdown", cancel_shutdown_handler))
+
+    app_commands = [
+        "open_discord", "close_discord", 
+        "open_steam", "close_steam", 
+        "open_cs2", "close_cs2", 
+        "open_chrome", "close_chrome"
+    ]
+    for cmd_name in app_commands:
+        tg.add_handler(CommandHandler(cmd_name, menu_app_handler))
+
+    tg.add_handler(CommandHandler("cmd", cmd_handler))
     tg.add_handler(CommandHandler("open", open_app))
     tg.add_handler(CommandHandler("close", close_app))
-
-    for name in ["status", "screenshot", "lock", "shutdown", "restart"]:
-        tg.add_handler(CommandHandler(name, lambda u, c, n=name: simple(u, c, n)))
-
-    tg.add_handler(CallbackQueryHandler(button))
-    tg.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_text))
 
     app = web.Application()
     app.router.add_get("/ws", ws)
@@ -245,6 +209,7 @@ async def main():
     await web.TCPSite(runner, "0.0.0.0", PORT).start()
 
     await tg.initialize()
+    await tg.bot.set_my_commands(commands) # Применяем английское меню
     await tg.start()
     await tg.updater.start_polling()
 
